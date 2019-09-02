@@ -11,10 +11,10 @@ import (
 
 type Client interface {
 	Create(ctx context.Context, res k8s.Resource, options ...k8s.Option) error
-	Get(ctx context.Context, namespace, name string, res k8s.Resource, options ...k8s.Option) error
+	Get(ctx context.Context, name string, res k8s.Resource, options ...k8s.Option) error
 	Update(ctx context.Context, res k8s.Resource, options ...k8s.Option) error
 	Delete(ctx context.Context, res k8s.Resource, options ...k8s.Option) error
-	Watch(ctx context.Context, namespace string, res k8s.Resource) (Watcher, error)
+	Watch(ctx context.Context, res k8s.Resource) (Watcher, error)
 }
 
 type Watcher interface {
@@ -30,8 +30,8 @@ func (a k8sClientAdapter) Create(ctx context.Context, res k8s.Resource, options 
 	return a.c.Create(ctx, res, options...)
 }
 
-func (a k8sClientAdapter) Get(ctx context.Context, namespace, name string, res k8s.Resource, options ...k8s.Option) error {
-	return a.c.Get(ctx, namespace, name, res, options...)
+func (a k8sClientAdapter) Get(ctx context.Context, name string, res k8s.Resource, options ...k8s.Option) error {
+	return a.c.Get(ctx, a.c.Namespace, name, res, options...)
 }
 
 func (a k8sClientAdapter) Update(ctx context.Context, res k8s.Resource, options ...k8s.Option) error {
@@ -42,8 +42,8 @@ func (a k8sClientAdapter) Delete(ctx context.Context, res k8s.Resource, options 
 	return a.c.Delete(ctx, res, options...)
 }
 
-func (a k8sClientAdapter) Watch(ctx context.Context, namespace string, res k8s.Resource) (Watcher, error) {
-	w, err := a.c.Watch(ctx, namespace, res, k8s.ResourceVersion("0"))
+func (a k8sClientAdapter) Watch(ctx context.Context, res k8s.Resource) (Watcher, error) {
+	w, err := a.c.Watch(ctx, a.c.Namespace, res, k8s.ResourceVersion("0"))
 	if err != nil {
 		return nil, err
 	}

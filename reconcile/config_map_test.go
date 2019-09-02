@@ -42,8 +42,8 @@ func TestConfigMapExisting(t *testing.T) {
 
 	client.
 		EXPECT().
-		Get(gomock.Eq(ctx), gomock.Eq("skop"), gomock.Eq("test"), gomock.Any()).
-		Do(func(_ context.Context, _ string, _ string, res k8s.Resource) {
+		Get(gomock.Eq(ctx), gomock.Eq("test"), gomock.Any()).
+		Do(func(_ context.Context, _ string, res k8s.Resource) {
 			*res.(*corev1.ConfigMap) = *existingConfigMap
 		}).
 		Return(nil)
@@ -87,7 +87,7 @@ func TestConfigMapNotFound(t *testing.T) {
 
 	client.
 		EXPECT().
-		Get(gomock.Eq(ctx), gomock.Eq("skop"), gomock.Eq("test"), gomock.Any()).
+		Get(gomock.Eq(ctx), gomock.Eq("test"), gomock.Any()).
 		Return(&k8s.APIError{Code: http.StatusNotFound})
 
 	client.
@@ -120,7 +120,7 @@ func TestConfigMapError(t *testing.T) {
 
 	client.
 		EXPECT().
-		Get(gomock.Eq(ctx), gomock.Eq("skop"), gomock.Eq("test"), gomock.Any()).
+		Get(gomock.Eq(ctx), gomock.Eq("test"), gomock.Any()).
 		Return(&k8s.APIError{Code: http.StatusInternalServerError})
 
 	if err := ConfigMap(ctx, client, configMap); err == nil {

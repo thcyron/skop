@@ -60,15 +60,14 @@ func TestOperator(t *testing.T) {
 
 	client.
 		EXPECT().
-		Watch(gomock.Any(), gomock.Eq("test"), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, ns string, res k8s.Resource) (skop.Watcher, error) {
+		Watch(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, res k8s.Resource) (skop.Watcher, error) {
 			return watcher, nil
 		}).
 		AnyTimes()
 
 	op := skop.New(
 		skop.WithResource(&testResource{}),
-		skop.WithNamespace("test"),
 		skop.WithClient(client),
 		skop.WithReconciler(skop.ReconcilerFunc(reconciler)),
 	)

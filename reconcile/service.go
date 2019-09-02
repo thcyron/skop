@@ -14,7 +14,6 @@ func Service(ctx context.Context, client skop.Client, expected *corev1.Service) 
 	existing := new(corev1.Service)
 	err := client.Get(
 		ctx,
-		expected.GetMetadata().GetNamespace(),
 		expected.GetMetadata().GetName(),
 		existing,
 	)

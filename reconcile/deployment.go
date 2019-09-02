@@ -14,7 +14,6 @@ func Deployment(ctx context.Context, client skop.Client, expected *appsv1.Deploy
 	existing := new(appsv1.Deployment)
 	err := client.Get(
 		ctx,
-		expected.GetMetadata().GetNamespace(),
 		expected.GetMetadata().GetName(),
 		existing,
 	)

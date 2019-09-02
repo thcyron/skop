@@ -55,9 +55,9 @@ func (mr *ClientMockRecorder) Create(ctx, res interface{}, options ...interface{
 }
 
 // Get mocks base method
-func (m *Client) Get(ctx context.Context, namespace, name string, res k8s.Resource, options ...k8s.Option) error {
+func (m *Client) Get(ctx context.Context, name string, res k8s.Resource, options ...k8s.Option) error {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, namespace, name, res}
+	varargs := []interface{}{ctx, name, res}
 	for _, a := range options {
 		varargs = append(varargs, a)
 	}
@@ -67,9 +67,9 @@ func (m *Client) Get(ctx context.Context, namespace, name string, res k8s.Resour
 }
 
 // Get indicates an expected call of Get
-func (mr *ClientMockRecorder) Get(ctx, namespace, name, res interface{}, options ...interface{}) *gomock.Call {
+func (mr *ClientMockRecorder) Get(ctx, name, res interface{}, options ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, namespace, name, res}, options...)
+	varargs := append([]interface{}{ctx, name, res}, options...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*Client)(nil).Get), varargs...)
 }
 
@@ -112,18 +112,18 @@ func (mr *ClientMockRecorder) Delete(ctx, res interface{}, options ...interface{
 }
 
 // Watch mocks base method
-func (m *Client) Watch(ctx context.Context, namespace string, res k8s.Resource) (skop.Watcher, error) {
+func (m *Client) Watch(ctx context.Context, res k8s.Resource) (skop.Watcher, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Watch", ctx, namespace, res)
+	ret := m.ctrl.Call(m, "Watch", ctx, res)
 	ret0, _ := ret[0].(skop.Watcher)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Watch indicates an expected call of Watch
-func (mr *ClientMockRecorder) Watch(ctx, namespace, res interface{}) *gomock.Call {
+func (mr *ClientMockRecorder) Watch(ctx, res interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*Client)(nil).Watch), ctx, namespace, res)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Watch", reflect.TypeOf((*Client)(nil).Watch), ctx, res)
 }
 
 // Watcher is a mock of Watcher interface

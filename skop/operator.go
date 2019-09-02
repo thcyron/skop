@@ -16,7 +16,6 @@ import (
 
 type Operator struct {
 	client         Client
-	namespace      string
 	resourceType   reflect.Type
 	logger         log.Logger
 	reconciler     Reconciler
@@ -43,14 +42,6 @@ func WithResource(r k8s.Resource) Option {
 	}
 }
 
-// WithNamespace configures an operator to watch for changes in the specified
-// namespace. This option is required and New will panic if it is not provided.
-func WithNamespace(namespace string) Option {
-	return func(op *Operator) {
-		op.namespace = namespace
-	}
-}
-
 // WithClient configures an operator to use the specified client to communicate
 // with the Kubernetes API. This option accepts an *k8s.Client as well as anything
 // implementing the Client interface and panics for any other values. It is
@@ -59,8 +50,7 @@ func WithClient(client interface{}) Option {
 	return func(op *Operator) {
 		switch c := client.(type) {
 		case *k8s.Client:
-			op.client = k8sClientAdapter{c}
-			op.namespace = c.Namespace
+			op.client = &k8sClientAdapter{c}
 		case Client:
 			op.client = c
 		default:
@@ -101,9 +91,6 @@ func New(options ...Option) *Operator {
 	}
 	if op.client == nil {
 		panic("skop: no client configured")
-	}
-	if op.namespace == "" {
-		panic("skop: no namespace configured")
 	}
 	if op.reconciler == nil {
 		panic("skop: no reconciler configured")
@@ -158,7 +145,7 @@ func (op *Operator) watch() {
 			level.Info(op.logger).Log(
 				"msg", "starting to watch for changes",
 			)
-			watcher, err := op.client.Watch(watchCtx, op.namespace, res)
+			watcher, err := op.client.Watch(watchCtx, res)
 			if err != nil {
 				watchErr <- err
 				return

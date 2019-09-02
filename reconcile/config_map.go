@@ -14,7 +14,6 @@ func ConfigMap(ctx context.Context, client skop.Client, configMap *corev1.Config
 	existing := new(corev1.ConfigMap)
 	err := client.Get(
 		ctx,
-		configMap.GetMetadata().GetNamespace(),
 		configMap.GetMetadata().GetName(),
 		existing,
 	)

@@ -18,8 +18,8 @@ import (
 	"github.com/go-kit/kit/log/level"
 	isatty "github.com/mattn/go-isatty"
 
-	"github.com/thcyron/skop/skop"
 	"github.com/thcyron/skop/reconcile"
+	"github.com/thcyron/skop/skop"
 )
 
 func init() {
@@ -54,7 +54,6 @@ func main() {
 	op := skop.New(
 		skop.WithResource(&Test{}),
 		skop.WithClient(client),
-		skop.WithNamespace(client.Namespace),
 		skop.WithReconciler(skop.ReconcilerFunc(reconciler)),
 		skop.WithLogger(logger),
 	)
