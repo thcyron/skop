@@ -77,13 +77,6 @@ func WithLogger(logger log.Logger) Option {
 	}
 }
 
-// WithSkipSameGeneration configures the operator whether to only
-func WithIgnoringGeneration() Option {
-	return func(op *Operator) {
-		op.store.skipGenerationCheck = true
-	}
-}
-
 // WithReconciler configures the operator to use the specified reconciler. As an operator can
 // only have one reconciler, when specifying this option multiple times, the last option wins.
 func WithReconciler(r Reconciler) Option {
@@ -189,10 +182,8 @@ func (op *Operator) watch() {
 						"msg", "adding resource to store",
 						"resource", name,
 					)
-					isUpdate := op.store.Add(res)
-					if isUpdate {
-						op.updates <- res
-					}
+					op.store.Add(res)
+					op.updates <- res
 				case k8s.EventDeleted:
 					level.Info(op.logger).Log(
 						"msg", "removing resource from store",

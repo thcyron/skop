@@ -7,9 +7,8 @@ import (
 )
 
 type store struct {
-	mu                  sync.RWMutex
-	skipGenerationCheck bool
-	resources           map[string]k8s.Resource
+	mu        sync.RWMutex
+	resources map[string]k8s.Resource
 }
 
 func (s *store) Get(name string) k8s.Resource {
@@ -22,30 +21,14 @@ func (s *store) Get(name string) k8s.Resource {
 	return s.resources[name]
 }
 
-func (s *store) Add(res k8s.Resource) bool {
-	var (
-		name     = res.GetMetadata().GetName()
-		isUpdate bool
-	)
+func (s *store) Add(res k8s.Resource) {
 	s.mu.Lock()
 	if s.resources == nil {
 		s.resources = make(map[string]k8s.Resource)
 	}
-	if existingResource := s.resources[name]; existingResource != nil {
-		s.resources[name] = res
-		if s.skipGenerationCheck {
-			isUpdate = true
-		} else {
-			oldGen := existingResource.GetMetadata().GetGeneration()
-			newGen := res.GetMetadata().GetGeneration()
-			isUpdate = newGen > oldGen
-		}
-	} else {
-		s.resources[name] = res
-		isUpdate = true
-	}
+	name := res.GetMetadata().GetName()
+	s.resources[name] = res
 	s.mu.Unlock()
-	return isUpdate
 }
 
 func (s *store) Remove(res k8s.Resource) {
