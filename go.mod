@@ -1,6 +1,6 @@
 module github.com/thcyron/skop
 
-go 1.12
+go 1.13
 
 require (
 	github.com/ericchiang/k8s v1.2.0
