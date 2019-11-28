@@ -32,7 +32,7 @@ func (a k8sClientAdapter) Create(ctx context.Context, res k8s.Resource, options 
 }
 
 func (a k8sClientAdapter) Get(ctx context.Context, name string, res k8s.Resource, options ...k8s.Option) error {
-	return a.c.Get(ctx, a.c.Namespace, name, res, options...)
+	return a.c.Get(ctx, *res.GetMetadata().Namespace, name, res, options...)
 }
 
 func (a k8sClientAdapter) Update(ctx context.Context, res k8s.Resource, options ...k8s.Option) error {
