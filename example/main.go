@@ -53,7 +53,7 @@ func main() {
 
 	op := skop.New(
 		skop.WithResource(&Test{}),
-		skop.WithClient(client),
+		skop.WithClient(client, false),
 		skop.WithReconciler(skop.ReconcilerFunc(reconciler)),
 		skop.WithLogger(logger),
 	)

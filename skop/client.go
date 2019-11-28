@@ -23,7 +23,8 @@ type Watcher interface {
 }
 
 type k8sClientAdapter struct {
-	c *k8s.Client
+	c                  *k8s.Client
+	watchAllNamespaces bool
 }
 
 func (a k8sClientAdapter) Create(ctx context.Context, res k8s.Resource, options ...k8s.Option) error {
@@ -43,7 +44,14 @@ func (a k8sClientAdapter) Delete(ctx context.Context, res k8s.Resource, options 
 }
 
 func (a k8sClientAdapter) Watch(ctx context.Context, res k8s.Resource) (Watcher, error) {
-	w, err := a.c.Watch(ctx, a.c.Namespace, res, k8s.ResourceVersion("0"))
+
+	namespaceToWatch := a.c.Namespace
+
+	if a.watchAllNamespaces {
+		namespaceToWatch = k8s.AllNamespaces
+	}
+
+	w, err := a.c.Watch(ctx, namespaceToWatch, res, k8s.ResourceVersion("0"))
 	if err != nil {
 		return nil, err
 	}

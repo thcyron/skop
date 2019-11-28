@@ -46,11 +46,11 @@ func WithResource(r k8s.Resource) Option {
 // with the Kubernetes API. This option accepts an *k8s.Client as well as anything
 // implementing the Client interface and panics for any other values. It is
 // required and New panics if it is not provided.
-func WithClient(client interface{}) Option {
+func WithClient(client interface{}, watchAllNamespaces bool) Option {
 	return func(op *Operator) {
 		switch c := client.(type) {
 		case *k8s.Client:
-			op.client = &k8sClientAdapter{c}
+			op.client = &k8sClientAdapter{c, watchAllNamespaces}
 		case Client:
 			op.client = c
 		default:
