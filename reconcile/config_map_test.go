@@ -26,6 +26,12 @@ func TestConfigMapExisting(t *testing.T) {
 			Metadata: &metav1.ObjectMeta{
 				Name:      k8s.String("test"),
 				Namespace: k8s.String("skop"),
+				Labels: map[string]string{
+					"label": "label",
+				},
+				Annotations: map[string]string{
+					"annotation": "annotation",
+				},
 			},
 			Data:       map[string]string{"foo": "baz"},
 			BinaryData: map[string][]byte{"foo": []byte("baz")},
@@ -58,6 +64,12 @@ func TestConfigMapExisting(t *testing.T) {
 			}
 			if !reflect.DeepEqual(cm.BinaryData, configMap.BinaryData) {
 				t.Errorf("unexpected binary data in updated config map: %v", cm.BinaryData)
+			}
+			if !reflect.DeepEqual(cm.Metadata.Labels, configMap.Metadata.Labels) {
+				t.Errorf("unexpected labels in updated config map: %v", cm.Metadata.Labels)
+			}
+			if !reflect.DeepEqual(cm.Metadata.Annotations, configMap.Metadata.Annotations) {
+				t.Errorf("unexpected annotations in updated config map: %v", cm.Metadata.Annotations)
 			}
 		}).
 		Return(nil)

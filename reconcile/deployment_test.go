@@ -26,6 +26,12 @@ func TestDeploymentExisting(t *testing.T) {
 			Metadata: &metav1.ObjectMeta{
 				Name:      k8s.String("test"),
 				Namespace: k8s.String("skop"),
+				Labels: map[string]string{
+					"label": "label",
+				},
+				Annotations: map[string]string{
+					"annotation": "annotation",
+				},
 			},
 			Spec: &appsv1.DeploymentSpec{
 				Replicas: k8s.Int32(2),
@@ -57,6 +63,12 @@ func TestDeploymentExisting(t *testing.T) {
 			d := res.(*appsv1.Deployment)
 			if !reflect.DeepEqual(d.Spec, deployment.Spec) {
 				t.Errorf("unexpected spec in updated deployment: %v", d.Spec)
+			}
+			if !reflect.DeepEqual(d.Metadata.Labels, deployment.Metadata.Labels) {
+				t.Errorf("unexpected labels in updated deployment: %v", d.Metadata.Labels)
+			}
+			if !reflect.DeepEqual(d.Metadata.Annotations, deployment.Metadata.Annotations) {
+				t.Errorf("unexpected annotations in updated deployment: %v", d.Metadata.Annotations)
 			}
 		}).
 		Return(nil)
