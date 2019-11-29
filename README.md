@@ -1,6 +1,7 @@
 # Skop: Simple Kubernetes Operators for Go
 
 [![GoDoc](https://godoc.org/github.com/thcyron/skop?status.svg)](https://godoc.org/github.com/thcyron/skop)
+![](https://github.com/thcyron/skop/workflows/CI/badge.svg)
 
 **Skop** is a lightweight framework for writing Kubernetes operators in Go. It:
 
