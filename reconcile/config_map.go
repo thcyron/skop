@@ -25,6 +25,8 @@ func ConfigMap(ctx context.Context, client skop.Client, configMap *corev1.Config
 		}
 		return err
 	}
+	existing.Metadata.Labels = configMap.Metadata.Labels
+	existing.Metadata.Annotations = configMap.Metadata.Annotations
 	existing.Data = configMap.Data
 	existing.BinaryData = configMap.BinaryData
 	return client.Update(ctx, existing)

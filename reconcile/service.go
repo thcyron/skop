@@ -26,6 +26,8 @@ func Service(ctx context.Context, client skop.Client, expected *corev1.Service) 
 		return err
 	}
 	clusterIP := existing.Spec.ClusterIP
+	existing.Metadata.Labels = expected.Metadata.Labels
+	existing.Metadata.Annotations = expected.Metadata.Annotations
 	existing.Spec = expected.Spec
 	existing.Spec.ClusterIP = clusterIP
 	return client.Update(ctx, existing)

@@ -25,6 +25,8 @@ func Deployment(ctx context.Context, client skop.Client, expected *appsv1.Deploy
 		}
 		return err
 	}
+	existing.Metadata.Labels = expected.Metadata.Labels
+	existing.Metadata.Annotations = expected.Metadata.Annotations
 	existing.Spec = expected.Spec
 	return client.Update(ctx, existing)
 }

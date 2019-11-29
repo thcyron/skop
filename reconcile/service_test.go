@@ -26,6 +26,12 @@ func TestServiceExisting(t *testing.T) {
 			Metadata: &metav1.ObjectMeta{
 				Name:      k8s.String("test"),
 				Namespace: k8s.String("skop"),
+				Labels: map[string]string{
+					"label": "label",
+				},
+				Annotations: map[string]string{
+					"annotation": "annotation",
+				},
 			},
 			Spec: &corev1.ServiceSpec{
 				Selector: map[string]string{"foo": "bar"},
@@ -61,6 +67,12 @@ func TestServiceExisting(t *testing.T) {
 			}
 			if !reflect.DeepEqual(s.Spec, service.Spec) {
 				t.Errorf("unexpected spec in updated service: %v", s.Spec)
+			}
+			if !reflect.DeepEqual(s.Metadata.Labels, service.Metadata.Labels) {
+				t.Errorf("unexpected labels in updated service: %v", s.Metadata.Labels)
+			}
+			if !reflect.DeepEqual(s.Metadata.Annotations, service.Metadata.Annotations) {
+				t.Errorf("unexpected annotations in updated service: %v", s.Metadata.Annotations)
 			}
 		}).
 		Return(nil)
