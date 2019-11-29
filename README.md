@@ -56,6 +56,11 @@ Basically, writing an operator for a custom resource boils down to:
 
 A complete, working example can be found in the [example/](example/) directory.
 
+## Who’s using Skop
+
+* [Hetzner Cloud](https://www.hetzner.com/cloud) is using Skop to deploy their
+  services in production, staging, and development environments.
+
 ## License
 
 MIT
