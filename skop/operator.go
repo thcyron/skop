@@ -194,6 +194,7 @@ func (op *Operator) watch() {
 					"msg", "watch failed",
 					"err", err,
 				)
+				time.Sleep(30 * time.Second)
 			} else {
 				level.Debug(op.logger).Log(
 					"msg", "watcher stopped without error",
