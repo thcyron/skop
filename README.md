@@ -58,7 +58,7 @@ A complete, working example can be found in the [example/](example/) directory.
 
 ## Who’s using Skop
 
-* [Hetzner Cloud](https://www.hetzner.com/cloud) is using Skop to deploy their
+* [Hetzner Cloud](https://hetzner-cloud.de) is using Skop to deploy their
   services in production, staging, and development environments.
 
 ## License
