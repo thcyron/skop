@@ -50,7 +50,7 @@ func WithClient(client interface{}) Option {
 	return func(op *Operator) {
 		switch c := client.(type) {
 		case *k8s.Client:
-			op.client = &k8sClientAdapter{c}
+			op.client = FromK8sClient(c)
 		case Client:
 			op.client = c
 		default:
