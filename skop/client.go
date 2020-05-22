@@ -22,6 +22,12 @@ type Watcher interface {
 	Close() error
 }
 
+// FromK8sClient provides an implementation of the Client interface
+// backed by the provided *k8s.Client.
+func FromK8sClient(c *k8s.Client) Client {
+	return &k8sClientAdapter{c}
+}
+
 type k8sClientAdapter struct {
 	c *k8s.Client
 }
