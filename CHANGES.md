@@ -1,6 +1,6 @@
 # Changes
 
-## master
+## v1.2.0
 
 - Add reconcile.DaemonSet()
 
