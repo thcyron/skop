@@ -2,33 +2,34 @@ package reconcile
 
 import (
 	"context"
-	"net/http"
 
-	"github.com/ericchiang/k8s"
-	corev1 "github.com/ericchiang/k8s/apis/core/v1"
-
-	"github.com/thcyron/skop/skop"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
-func Service(ctx context.Context, client skop.Client, expected *corev1.Service) error {
-	existing := new(corev1.Service)
-	err := client.Get(
-		ctx,
-		expected.GetMetadata().GetName(),
-		existing,
-	)
+func Service(ctx context.Context, cs *kubernetes.Clientset, service *corev1.Service) error {
+	client := cs.CoreV1().Services(service.Namespace)
+	existing, err := client.Get(ctx, service.Name, metav1.GetOptions{})
 	if err != nil {
-		if apiErr, ok := err.(*k8s.APIError); ok {
-			if apiErr.Code == http.StatusNotFound {
-				return client.Create(ctx, expected)
-			}
+		if errors.IsNotFound(err) {
+			_, err = client.Create(ctx, service, metav1.CreateOptions{})
+			return err
 		}
 		return err
 	}
 	clusterIP := existing.Spec.ClusterIP
-	existing.Metadata.Labels = expected.Metadata.Labels
-	existing.Metadata.Annotations = expected.Metadata.Annotations
-	existing.Spec = expected.Spec
+	existing.Labels = service.Labels
+	existing.Annotations = service.Annotations
+	existing.Spec = service.Spec
 	existing.Spec.ClusterIP = clusterIP
-	return client.Update(ctx, existing)
+	_, err = client.Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
+func ServiceAbsence(ctx context.Context, cs *kubernetes.Clientset, service *corev1.Service) error {
+	return Absence(func() error {
+		return cs.CoreV1().Services(service.Namespace).Delete(ctx, service.Name, metav1.DeleteOptions{})
+	})
 }
