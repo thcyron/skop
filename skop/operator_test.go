@@ -1,76 +1,90 @@
-package skop_test
+package skop
 
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
-	"github.com/ericchiang/k8s"
-	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
-	"github.com/golang/mock/gomock"
-
-	"github.com/thcyron/skop/skop"
-	"github.com/thcyron/skop/skop/mock"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 )
 
-func init() {
-	k8s.Register("example.com", "v1", "test", true, &testResource{})
-}
-
 type testResource struct {
-	Metadata *metav1.ObjectMeta `json:"metadata"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
 }
 
-func (r *testResource) GetMetadata() *metav1.ObjectMeta { return r.Metadata }
+type testInformer struct {
+	mu        sync.Mutex
+	updates   chan Resource
+	resources map[string]Resource
+}
 
-func generation(i int64) *int64 { return &i }
+func newTestInformer() *testInformer {
+	return &testInformer{
+		updates:   make(chan Resource),
+		resources: map[string]Resource{},
+	}
+}
+
+func (i *testInformer) Get(key string) Resource {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.resources[key]
+}
+
+func (i *testInformer) Key(res Resource) string {
+	return res.GetName()
+}
+
+func (i *testInformer) Keys() []string {
+	all := []string{}
+	i.mu.Lock()
+	for key := range i.resources {
+		all = append(all, key)
+	}
+	i.mu.Unlock()
+	return all
+}
+
+func (i *testInformer) Run(stopCh <-chan struct{}, update func(Resource)) {
+	for {
+		select {
+		case res := <-i.updates:
+			update(res)
+		case <-stopCh:
+			return
+		}
+	}
+}
+
+func (i *testInformer) add(res Resource) {
+	i.mu.Lock()
+	i.resources[res.GetName()] = res
+	i.mu.Unlock()
+	i.updates <- res
+}
 
 func TestOperator(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	client := mock.NewClient(ctrl)
-
 	var (
 		reconcilerFuncs   = make(chan func() error)
 		reconcilerResults = make(chan error)
-		reconciler        = func(ctx context.Context, op *skop.Operator, res k8s.Resource) error {
+		reconciler        = func(ctx context.Context, op *Operator, res Resource) error {
 			err := (<-reconcilerFuncs)()
 			reconcilerResults <- err
 			return err
 		}
 	)
 
-	var (
-		watcherFuncs = make(chan func(k8s.Resource) (string, error))
-		watcher      = mock.NewWatcher(ctrl)
+	op := New(
+		WithResource("example.com", "v1", "tests", &testResource{}),
+		WithConfig(&rest.Config{}),
+		WithReconciler(ReconcilerFunc(reconciler)),
 	)
-	watcher.
-		EXPECT().
-		Next(gomock.Any()).
-		DoAndReturn(func(res k8s.Resource) (string, error) {
-			return (<-watcherFuncs)(res)
-		}).
-		AnyTimes()
-	watcher.
-		EXPECT().
-		Close().
-		Return(nil).
-		AnyTimes()
 
-	client.
-		EXPECT().
-		Watch(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, res k8s.Resource) (skop.Watcher, error) {
-			return watcher, nil
-		}).
-		AnyTimes()
-
-	op := skop.New(
-		skop.WithResource(&testResource{}),
-		skop.WithClient(client),
-		skop.WithReconciler(skop.ReconcilerFunc(reconciler)),
-	)
+	informer := newTestInformer()
+	op.informer = informer
 
 	runExited := make(chan struct{})
 	go func() {
@@ -78,15 +92,14 @@ func TestOperator(t *testing.T) {
 		close(runExited)
 	}()
 
-	// Emit an ADDED event.
-	watcherFuncs <- func(res k8s.Resource) (string, error) {
-		res.(*testResource).Metadata = &metav1.ObjectMeta{
-			Name:       k8s.String("test"),
-			Namespace:  k8s.String("skop"),
-			Generation: generation(1),
-		}
-		return k8s.EventAdded, nil
-	}
+	// Add a new resource.
+	informer.add(&testResource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test",
+			Namespace:  "skop",
+			Generation: 1,
+		},
+	})
 
 	// Expect the reconciler to be called.
 	reconcilerFuncs <- func() error { return nil }
@@ -94,15 +107,14 @@ func TestOperator(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Emit a MODIFIED event.
-	watcherFuncs <- func(res k8s.Resource) (string, error) {
-		res.(*testResource).Metadata = &metav1.ObjectMeta{
-			Name:       k8s.String("test"),
-			Namespace:  k8s.String("skop"),
-			Generation: generation(2),
-		}
-		return k8s.EventModified, nil
-	}
+	// Update that resource.
+	informer.add(&testResource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "test",
+			Namespace:  "skop",
+			Generation: 2,
+		},
+	})
 
 	// Let the reconciler fail and the operator schedule a retry.
 	boom := errors.New("boom")
@@ -117,40 +129,11 @@ func TestOperator(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Make the watcher fail.
-	watcherFuncs <- func(res k8s.Resource) (string, error) {
-		return "", errors.New("boom")
-	}
-
-	// Emit another MODIFIED event. Operator should have created a new watcher.
-	watcherFuncs <- func(res k8s.Resource) (string, error) {
-		res.(*testResource).Metadata = &metav1.ObjectMeta{
-			Name:       k8s.String("test"),
-			Namespace:  k8s.String("skop"),
-			Generation: generation(3),
-		}
-		return k8s.EventModified, nil
-	}
-	reconcilerFuncs <- func() error { return nil }
-	if err := <-reconcilerResults; err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
 	// Trigger a manual reconcile run.
 	op.Reconcile()
 	reconcilerFuncs <- func() error { return nil }
 	if err := <-reconcilerResults; err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Emit a DELETED event.
-	watcherFuncs <- func(res k8s.Resource) (string, error) {
-		res.(*testResource).Metadata = &metav1.ObjectMeta{
-			Name:       k8s.String("test"),
-			Namespace:  k8s.String("skop"),
-			Generation: generation(3),
-		}
-		return k8s.EventDeleted, nil
 	}
 
 	// Stop the operator.

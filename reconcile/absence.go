@@ -1,21 +1,13 @@
 package reconcile
 
 import (
-	"context"
-	"net/http"
-
-	"github.com/ericchiang/k8s"
-
-	"github.com/thcyron/skop/skop"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-func Absence(ctx context.Context, client skop.Client, res k8s.Resource) error {
-	err := client.Delete(ctx, res)
-	if err == nil {
-		return nil
+func Absence(delete func() error) error {
+	err := delete()
+	if err != nil && !errors.IsNotFound(err) {
+		return err
 	}
-	if apiErr, ok := err.(*k8s.APIError); ok && apiErr.Code == http.StatusNotFound {
-		return nil
-	}
-	return err
+	return nil
 }

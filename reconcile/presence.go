@@ -1,21 +1,16 @@
 package reconcile
 
 import (
-	"context"
-	"net/http"
-
-	"github.com/ericchiang/k8s"
-
-	"github.com/thcyron/skop/skop"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-func Presence(ctx context.Context, client skop.Client, res k8s.Resource) error {
-	err := client.Create(ctx, res)
-	if err != nil {
-		if apiErr, ok := err.(*k8s.APIError); ok && apiErr.Code == http.StatusConflict {
-			return nil
-		}
-		return err
+func Presence(create, update func() error) error {
+	err := update()
+	if err == nil {
+		return nil
 	}
-	return nil
+	if errors.IsNotFound(err) {
+		err = create()
+	}
+	return err
 }

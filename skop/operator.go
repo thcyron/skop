@@ -2,25 +2,32 @@ package skop
 
 import (
 	"context"
-	"fmt"
-	"io"
+	"encoding/json"
 	"math"
 	"reflect"
 	"sync"
 	"time"
 
-	"github.com/ericchiang/k8s"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 type Operator struct {
-	client         Client
+	namespace      string
+	config         *rest.Config
+	clientset      *kubernetes.Clientset
+	resource       schema.GroupVersionResource
 	resourceType   reflect.Type
+	informer       informer
 	logger         log.Logger
 	reconciler     Reconciler
-	store          store
-	updates        chan k8s.Resource
+	updates        chan Resource
 	retries        chan string
 	retrySchedules map[string]retrySchedule
 	stop           chan struct{}
@@ -34,28 +41,34 @@ type retrySchedule struct {
 
 type Option func(op *Operator)
 
-// WithResource configures an operator to watch for changes of the specified
-// resource type. This option is required and New will panic if it is not provided.
-func WithResource(r k8s.Resource) Option {
+// WithNamespace configures an operator to only watch for resources
+// in the specified namespace. By default, or when an empty namespace
+// is specified, the operator watches for resources in all namespaces.
+func WithNamespace(namespace string) Option {
 	return func(op *Operator) {
-		op.resourceType = reflect.TypeOf(r).Elem()
+		op.namespace = namespace
 	}
 }
 
-// WithClient configures an operator to use the specified client to communicate
-// with the Kubernetes API. This option accepts an *k8s.Client as well as anything
-// implementing the Client interface and panics for any other values. It is
-// required and New panics if it is not provided.
-func WithClient(client interface{}) Option {
+// WithResource tells an operator the API group, version, and resource
+// name (plural) and also specifies a prototype of the Go struct which
+// represents the custom resource.
+func WithResource(group, version, resource string, prototype Resource) Option {
 	return func(op *Operator) {
-		switch c := client.(type) {
-		case *k8s.Client:
-			op.client = FromK8sClient(c)
-		case Client:
-			op.client = c
-		default:
-			panic(fmt.Sprintf("skop: unsupported client type: %T", c))
+		op.resource = schema.GroupVersionResource{
+			Group:    group,
+			Version:  version,
+			Resource: resource,
 		}
+		op.resourceType = reflect.TypeOf(prototype).Elem()
+	}
+}
+
+// WithConfig configures an operator to use the specified config
+// for creating Kubernetes clients.
+func WithConfig(c *rest.Config) Option {
+	return func(op *Operator) {
+		op.config = c
 	}
 }
 
@@ -78,7 +91,7 @@ func WithReconciler(r Reconciler) Option {
 // New constructs a new operator with the provided options.
 func New(options ...Option) *Operator {
 	op := &Operator{
-		updates:        make(chan k8s.Resource),
+		updates:        make(chan Resource),
 		retries:        make(chan string),
 		stop:           make(chan struct{}),
 		retrySchedules: make(map[string]retrySchedule),
@@ -86,11 +99,11 @@ func New(options ...Option) *Operator {
 	for _, option := range options {
 		option(op)
 	}
-	if op.resourceType == nil {
+	if op.resource.Resource == "" {
 		panic("skop: no resource configured")
 	}
-	if op.client == nil {
-		panic("skop: no client configured")
+	if op.config == nil {
+		panic("skop: no config configured")
 	}
 	if op.reconciler == nil {
 		panic("skop: no reconciler configured")
@@ -101,11 +114,21 @@ func New(options ...Option) *Operator {
 	return op
 }
 
-func (op *Operator) makeResource() k8s.Resource {
-	return reflect.New(op.resourceType).Interface().(k8s.Resource)
-}
+func (op *Operator) Run() error {
+	if op.informer == nil {
+		informer, err := newK8sInformer(op.config, op.namespace, op.resource, op.resourceType)
+		if err != nil {
+			return err
+		}
+		op.informer = informer
+	}
 
-func (op *Operator) Run() {
+	cs, err := kubernetes.NewForConfig(op.config)
+	if err != nil {
+		return err
+	}
+	op.clientset = cs
+
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -121,6 +144,7 @@ func (op *Operator) Run() {
 	}()
 
 	wg.Wait()
+	return nil
 }
 
 func (op *Operator) Stop() {
@@ -130,78 +154,10 @@ func (op *Operator) Stop() {
 }
 
 func (op *Operator) watch() {
-	var (
-		ctx = context.Background()
-		res = op.makeResource()
-	)
-
-	for {
-		op.store.Clear()
-
-		watchCtx, cancel := context.WithCancel(ctx)
-		watchErr := make(chan error, 1)
-
-		go func() {
-			level.Info(op.logger).Log(
-				"msg", "starting to watch for changes",
-			)
-			watcher, err := op.client.Watch(watchCtx, res)
-			if err != nil {
-				watchErr <- err
-				return
-			}
-			defer watcher.Close()
-
-			for {
-				res = op.makeResource()
-				eventType, err := watcher.Next(res)
-				if err != nil {
-					if err == io.EOF {
-						err = nil
-					}
-					watchErr <- err
-					return
-				}
-				name := res.GetMetadata().GetName()
-				switch eventType {
-				case k8s.EventAdded, k8s.EventModified:
-					level.Info(op.logger).Log(
-						"msg", "adding resource to store",
-						"resource", name,
-					)
-					op.store.Add(res)
-					op.updates <- res
-				case k8s.EventDeleted:
-					level.Info(op.logger).Log(
-						"msg", "removing resource from store",
-						"resource", name,
-					)
-					op.store.Remove(res)
-				default:
-					break
-				}
-			}
-		}()
-
-		select {
-		case <-op.stop:
-			cancel()
-			return
-		case err := <-watchErr:
-			cancel()
-			if err != nil {
-				level.Error(op.logger).Log(
-					"msg", "watch failed",
-					"err", err,
-				)
-				time.Sleep(30 * time.Second)
-			} else {
-				level.Debug(op.logger).Log(
-					"msg", "watcher stopped without error",
-				)
-			}
-		}
-	}
+	level.Info(op.logger).Log("msg", "starting informer")
+	op.informer.Run(op.stop, func(res Resource) {
+		op.updates <- res
+	})
 }
 
 func (op *Operator) reconcile() {
@@ -209,21 +165,28 @@ func (op *Operator) reconcile() {
 		level.Debug(op.logger).Log(
 			"msg", "waiting for update or retry",
 		)
-		var res k8s.Resource
+		var res Resource
 		select {
 		case <-op.stop:
 			return
 		case res = <-op.updates:
 			level.Debug(op.logger).Log(
 				"msg", "got resource from update channel",
-				"resource", res.GetMetadata().GetName(),
+				"resource", res.GetName(),
 			)
-		case name := <-op.retries:
+		case key := <-op.retries:
 			level.Debug(op.logger).Log(
 				"msg", "got resource from retries channel",
-				"resource", name,
+				"resource", key,
 			)
-			res = op.store.Get(name)
+			if r := op.informer.Get(key); r != nil {
+				res = r
+			} else {
+				level.Debug(op.logger).Log(
+					"msg", "informer did not return resource",
+					"resource", key,
+				)
+			}
 		}
 		if res == nil {
 			continue
@@ -231,13 +194,13 @@ func (op *Operator) reconcile() {
 		ctx := context.Background()
 		level.Debug(op.logger).Log(
 			"msg", "calling reconciler",
-			"resource", res.GetMetadata().GetName(),
+			"resource", res.GetName(),
 		)
 		start := time.Now()
 		op.runReconciler(ctx, res)
 		level.Debug(op.logger).Log(
 			"msg", "reconciler finished",
-			"resource", res.GetMetadata().GetName(),
+			"resource", res.GetName(),
 			"duration", time.Since(start),
 		)
 	}
@@ -245,7 +208,7 @@ func (op *Operator) reconcile() {
 
 const maxBackoff = 5 * time.Minute
 
-func (op *Operator) runReconciler(ctx context.Context, res k8s.Resource) {
+func (op *Operator) runReconciler(ctx context.Context, res Resource) {
 	defer func() {
 		if r := recover(); r != nil {
 			level.Error(op.logger).Log(
@@ -255,9 +218,9 @@ func (op *Operator) runReconciler(ctx context.Context, res k8s.Resource) {
 		}
 	}()
 
-	name := res.GetMetadata().GetName()
+	key := op.informer.Key(res)
 
-	if schedule, ok := op.retrySchedules[name]; ok {
+	if schedule, ok := op.retrySchedules[key]; ok {
 		schedule.timer.Stop()
 	}
 
@@ -265,38 +228,35 @@ func (op *Operator) runReconciler(ctx context.Context, res k8s.Resource) {
 	if err == nil {
 		level.Debug(op.logger).Log(
 			"msg", "reconciler ran without errors; removing scheduled retry",
-			"resource", name,
+			"resource", key,
 		)
-		delete(op.retrySchedules, name)
+		delete(op.retrySchedules, key)
 		return
 	}
 
-	failures := op.retrySchedules[name].failures
+	failures := op.retrySchedules[key].failures
 	backoff := time.Duration(math.Pow(2, float64(failures))) * time.Second
 	if backoff > maxBackoff {
 		backoff = maxBackoff
 	}
 	level.Debug(op.logger).Log(
 		"msg", "reconciler failed; scheduling retry",
-		"resource", name,
+		"resource", key,
 		"backoff", backoff,
+		"err", err,
 	)
+
 	timer := time.AfterFunc(backoff, func() {
 		select {
 		case <-op.stop:
 			return
-		case op.retries <- name:
+		case op.retries <- key:
 		}
 	})
-	op.retrySchedules[name] = retrySchedule{
+	op.retrySchedules[key] = retrySchedule{
 		failures: failures + 1,
 		timer:    timer,
 	}
-}
-
-// Client returns a client for the Kubernetes API you can use in your handlers.
-func (op *Operator) Client() Client {
-	return op.client
 }
 
 // Reconcile reconciles all currently known resources.
@@ -305,14 +265,14 @@ func (op *Operator) Reconcile() {
 		"msg", "reconciling all resources",
 	)
 	go func() {
-		for _, res := range op.store.All() {
+		for _, key := range op.informer.Keys() {
 			select {
 			case <-op.stop:
 				return
-			case op.retries <- res.GetMetadata().GetName():
+			case op.retries <- key:
 				level.Debug(op.logger).Log(
 					"msg", "triggered update",
-					"resource", res.GetMetadata().GetName(),
+					"resource", key,
 				)
 			}
 		}
@@ -320,4 +280,29 @@ func (op *Operator) Reconcile() {
 			"msg", "triggered update for all resources",
 		)
 	}()
+}
+
+func (op *Operator) Config() *rest.Config {
+	return op.config
+}
+
+func (op *Operator) Clientset() *kubernetes.Clientset {
+	return op.clientset
+}
+
+func (op *Operator) UpdateStatus(ctx context.Context, res Resource) error {
+	obj := &unstructured.Unstructured{}
+	data, err := json.Marshal(res)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, &obj.Object); err != nil {
+		return err
+	}
+	client, err := dynamic.NewForConfig(op.config)
+	if err != nil {
+		return err
+	}
+	_, err = client.Resource(op.resource).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
+	return err
 }

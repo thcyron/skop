@@ -6,7 +6,6 @@
 **Skop** is a lightweight framework for writing Kubernetes operators in Go. It:
 
 * Tries to keep the amount of boilerplate code small.
-* Uses the minimal [k8s package](https://github.com/ericchiang/k8s) for communicating with the Kubernetes API.
 * Doesn’t rely on code generation.
 * Provides helpers for common reconciliation tasks.
 
@@ -18,10 +17,9 @@ Basically, writing an operator for a custom resource boils down to:
 
     ```go
     type Test struct {
-        Kind       string             `json:"kind"`
-        APIVersion string             `json:"apiVersion"`
-        Metadata   *metav1.ObjectMeta `json:"metadata"`
-        Spec       TestSpec           `json:"spec"`
+	    metav1.TypeMeta   `json:",inline"`
+	    metav1.ObjectMeta `json:"metadata"`
+	    Spec              TestSpec `json:"spec"`
     }
 
     type TestSpec struct {
@@ -33,7 +31,7 @@ Basically, writing an operator for a custom resource boils down to:
 
     ```go
     op := skop.New(
-        skop.WithResource(&Test{}),
+        skop.WithResource("example.com", "v1", "tests", &Test{}),
         skop.WithReconciler(skop.ReconcilerFunc(reconciler)),
     )
     ```
@@ -44,7 +42,7 @@ Basically, writing an operator for a custom resource boils down to:
     func reconciler(ctx context.Context, op *skop.Operator, res k8s.Resource) error {
         test := res.(*Test)
         deployment := makeDeployment(test)
-        return reconcile.Deployment(ctx, op.Client(), deployment)
+        return reconcile.Deployment(ctx, op.Clientset(), deployment)
     }
     ```
 

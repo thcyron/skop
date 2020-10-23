@@ -2,31 +2,32 @@ package reconcile
 
 import (
 	"context"
-	"net/http"
 
-	"github.com/ericchiang/k8s"
-	appsv1 "github.com/ericchiang/k8s/apis/apps/v1"
-
-	"github.com/thcyron/skop/skop"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
-func Deployment(ctx context.Context, client skop.Client, expected *appsv1.Deployment) error {
-	existing := new(appsv1.Deployment)
-	err := client.Get(
-		ctx,
-		expected.GetMetadata().GetName(),
-		existing,
-	)
+func Deployment(ctx context.Context, cs *kubernetes.Clientset, deployment *appsv1.Deployment) error {
+	client := cs.AppsV1().Deployments(deployment.Namespace)
+	existing, err := client.Get(ctx, deployment.Name, metav1.GetOptions{})
 	if err != nil {
-		if apiErr, ok := err.(*k8s.APIError); ok {
-			if apiErr.Code == http.StatusNotFound {
-				return client.Create(ctx, expected)
-			}
+		if errors.IsNotFound(err) {
+			_, err = client.Create(ctx, deployment, metav1.CreateOptions{})
+			return err
 		}
 		return err
 	}
-	existing.Metadata.Labels = expected.Metadata.Labels
-	existing.Metadata.Annotations = expected.Metadata.Annotations
-	existing.Spec = expected.Spec
-	return client.Update(ctx, existing)
+	existing.Labels = deployment.Labels
+	existing.Annotations = deployment.Annotations
+	existing.Spec = deployment.Spec
+	_, err = client.Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
+func DeploymentAbsence(ctx context.Context, cs *kubernetes.Clientset, deployment *appsv1.Deployment) error {
+	return Absence(func() error {
+		return cs.AppsV1().Deployments(deployment.Namespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{})
+	})
 }

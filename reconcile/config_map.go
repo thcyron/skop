@@ -2,32 +2,34 @@ package reconcile
 
 import (
 	"context"
-	"net/http"
 
-	"github.com/ericchiang/k8s"
-	corev1 "github.com/ericchiang/k8s/apis/core/v1"
-
-	"github.com/thcyron/skop/skop"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
-func ConfigMap(ctx context.Context, client skop.Client, configMap *corev1.ConfigMap) error {
-	existing := new(corev1.ConfigMap)
-	err := client.Get(
-		ctx,
-		configMap.GetMetadata().GetName(),
-		existing,
-	)
+func ConfigMap(ctx context.Context, cs *kubernetes.Clientset, configMap *corev1.ConfigMap) error {
+	client := cs.CoreV1().ConfigMaps(configMap.Namespace)
+	existing, err := client.Get(ctx, configMap.Name, metav1.GetOptions{})
 	if err != nil {
-		if apiErr, ok := err.(*k8s.APIError); ok {
-			if apiErr.Code == http.StatusNotFound {
-				return client.Create(ctx, configMap)
-			}
+		if errors.IsNotFound(err) {
+			_, err = client.Create(ctx, configMap, metav1.CreateOptions{})
+			return err
 		}
 		return err
 	}
-	existing.Metadata.Labels = configMap.Metadata.Labels
-	existing.Metadata.Annotations = configMap.Metadata.Annotations
+	existing.Labels = configMap.Labels
+	existing.Annotations = configMap.Annotations
 	existing.Data = configMap.Data
 	existing.BinaryData = configMap.BinaryData
-	return client.Update(ctx, existing)
+	existing.Immutable = configMap.Immutable
+	_, err = client.Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
+func ConfigMapAbsence(ctx context.Context, cs *kubernetes.Clientset, configMap *corev1.ConfigMap) error {
+	return Absence(func() error {
+		return cs.CoreV1().ConfigMaps(configMap.Namespace).Delete(ctx, configMap.Name, metav1.DeleteOptions{})
+	})
 }

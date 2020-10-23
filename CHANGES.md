@@ -1,5 +1,10 @@
 # Changes
 
+## master
+
+- Ditch github.com/ericchiang/k8s in favor of k8s.io/client-go
+- Import path is now github.com/thcyron/skop/v2
+
 ## v1.2.0
 
 - Add reconcile.DaemonSet()
