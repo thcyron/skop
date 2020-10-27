@@ -19,7 +19,8 @@ func Job(ctx context.Context, cs *kubernetes.Clientset, job *batchv1.Job) error 
 		}
 		return err
 	}
-	existing.Spec = job.Spec
+	existing.Labels = job.Labels
+	existing.Annotations = job.Annotations
 	_, err = client.Update(ctx, existing, metav1.UpdateOptions{})
 	return err
 }
