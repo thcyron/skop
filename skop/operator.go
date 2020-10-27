@@ -303,6 +303,9 @@ func (op *Operator) UpdateStatus(ctx context.Context, res Resource) error {
 	if err != nil {
 		return err
 	}
-	_, err = client.Resource(op.resource).UpdateStatus(ctx, obj, metav1.UpdateOptions{})
+	_, err = client.
+		Resource(op.resource).
+		Namespace(res.GetNamespace()).
+		UpdateStatus(ctx, obj, metav1.UpdateOptions{})
 	return err
 }
