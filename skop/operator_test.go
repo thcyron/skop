@@ -11,8 +11,9 @@ import (
 )
 
 type testResource struct {
-	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
+	Kind              string `json:"kind"`
+	APIVersion        string `json:"apiVersion"`
 }
 
 type testInformer struct {

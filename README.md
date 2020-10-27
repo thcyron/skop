@@ -17,9 +17,10 @@ Basically, writing an operator for a custom resource boils down to:
 
     ```go
     type Test struct {
-	    metav1.TypeMeta   `json:",inline"`
-	    metav1.ObjectMeta `json:"metadata"`
-	    Spec              TestSpec `json:"spec"`
+        metav1.ObjectMeta `json:"metadata"`
+        Kind              string   `json:"kind"`
+        APIVersion        string   `json:"apiVersion"`
+        Spec              TestSpec `json:"spec"`
     }
 
     type TestSpec struct {
