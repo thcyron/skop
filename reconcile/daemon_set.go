@@ -28,6 +28,9 @@ func DaemonSet(ctx context.Context, cs *kubernetes.Clientset, daemonSet *appsv1.
 
 func DaemonSetAbsence(ctx context.Context, cs *kubernetes.Clientset, daemonSet *appsv1.DaemonSet) error {
 	return Absence(func() error {
-		return cs.AppsV1().DaemonSets(daemonSet.Namespace).Delete(ctx, daemonSet.Name, metav1.DeleteOptions{})
+		propagationPolicy := metav1.DeletePropagationBackground
+		return cs.AppsV1().DaemonSets(daemonSet.Namespace).Delete(ctx, daemonSet.Name, metav1.DeleteOptions{
+			PropagationPolicy: &propagationPolicy,
+		})
 	})
 }

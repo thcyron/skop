@@ -27,6 +27,9 @@ func Job(ctx context.Context, cs *kubernetes.Clientset, job *batchv1.Job) error 
 
 func JobAbsence(ctx context.Context, cs *kubernetes.Clientset, job *batchv1.Job) error {
 	return Absence(func() error {
-		return cs.BatchV1().Jobs(job.Namespace).Delete(ctx, job.Name, metav1.DeleteOptions{})
+		propagationPolicy := metav1.DeletePropagationBackground
+		return cs.BatchV1().Jobs(job.Namespace).Delete(ctx, job.Name, metav1.DeleteOptions{
+			PropagationPolicy: &propagationPolicy,
+		})
 	})
 }
