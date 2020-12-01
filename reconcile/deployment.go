@@ -28,6 +28,9 @@ func Deployment(ctx context.Context, cs *kubernetes.Clientset, deployment *appsv
 
 func DeploymentAbsence(ctx context.Context, cs *kubernetes.Clientset, deployment *appsv1.Deployment) error {
 	return Absence(func() error {
-		return cs.AppsV1().Deployments(deployment.Namespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{})
+		propagationPolicy := metav1.DeletePropagationBackground
+		return cs.AppsV1().Deployments(deployment.Namespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{
+			PropagationPolicy: &propagationPolicy,
+		})
 	})
 }
