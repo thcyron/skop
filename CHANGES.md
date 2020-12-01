@@ -1,6 +1,6 @@
 # Changes
 
-## master
+## v2.0.1
 
 - Use background delete propagation when reconciling job, daemon set, and
   deployment absence
