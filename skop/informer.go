@@ -2,6 +2,7 @@ package skop
 
 import (
 	"reflect"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
@@ -26,6 +27,7 @@ type k8sInformer struct {
 func newK8sInformer(
 	config *rest.Config,
 	namespace string,
+	defaultResync time.Duration,
 	gvr schema.GroupVersionResource,
 	resourceType reflect.Type,
 ) (*k8sInformer, error) {
@@ -34,7 +36,7 @@ func newK8sInformer(
 		return nil, err
 	}
 
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, namespace, nil)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, defaultResync, namespace, nil)
 	informer := factory.ForResource(gvr).Informer()
 
 	return &k8sInformer{

@@ -20,6 +20,7 @@ import (
 
 type Operator struct {
 	namespace      string
+	defaultResync  time.Duration
 	config         *rest.Config
 	clientset      *kubernetes.Clientset
 	resource       schema.GroupVersionResource
@@ -47,6 +48,14 @@ type Option func(op *Operator)
 func WithNamespace(namespace string) Option {
 	return func(op *Operator) {
 		op.namespace = namespace
+	}
+}
+
+// WithDefaultResync configures an operator to resync after timeout is reached.
+// By default or when an a timeout of 0 is set, the operator does not resync.
+func WithDefaultResync(t time.Duration) Option {
+	return func(op *Operator) {
+		op.defaultResync = t
 	}
 }
 
@@ -116,7 +125,7 @@ func New(options ...Option) *Operator {
 
 func (op *Operator) Run() error {
 	if op.informer == nil {
-		informer, err := newK8sInformer(op.config, op.namespace, op.resource, op.resourceType)
+		informer, err := newK8sInformer(op.config, op.namespace, op.defaultResync, op.resource, op.resourceType)
 		if err != nil {
 			return err
 		}
