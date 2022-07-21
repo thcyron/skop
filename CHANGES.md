@@ -1,5 +1,9 @@
 # Changes
 
+## v2.1.0
+
+- Add option to set default resync interval
+
 ## v2.0.1
 
 - Use background delete propagation when reconciling job, daemon set, and
